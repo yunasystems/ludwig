@@ -176,15 +176,9 @@ def parquet_generate_petastorm_schema(one_row, features):
 
 
 def save_parquet(data_fp, data, features):
-    import pdb; pdb.set_trace()
 
     def row_generator(i):
         out = {}
-        """
-        for key in data:
-            out[key] = data[key][i]
-        """
-
         for f in features:
             if f['type'] == 'text':
                 col_name = text_feature_data_field(f)
@@ -201,16 +195,16 @@ def save_parquet(data_fp, data, features):
     spark = SparkSession.builder.config(
         'spark.driver.memory', '2g').master('local[2]').getOrCreate()
     sc = spark.sparkContext
-    schema = parquet_generate_petastorm_schema(row_generator(0), features)
     output_url = 'file://{}'.format(data_fp)
     num_rows = len(data[list(data.keys())[0]])
 
-    with materialize_dataset(spark, output_url, schema):
-        rdd = sc.parallelize(range(num_rows)).map(row_generator).map(
-            convert_to_row
-        )
-        # spark.createDataFrame(rdd, schema.as_spark_schema()).coalesce(10).write.mode('overwrite').parquet(output_url)
-        spark.createDataFrame(rdd).coalesce(10).write.mode('overwrite').parquet(output_url)
+    # with materialize_dataset(spark, output_url, schema):
+    rdd = sc.parallelize(range(num_rows)).map(row_generator).map(
+        convert_to_row
+    )
+    spark.createDataFrame(rdd).coalesce(10).write.mode('overwrite').parquet(
+        output_url
+    )
 
 
 def load_object(object_fp):
