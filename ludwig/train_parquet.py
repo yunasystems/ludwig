@@ -44,15 +44,6 @@ from ludwig.data.petastorm_dataset import PetaStormDataset
 logger = logging.getLogger(__name__)
 
 
-def _parquet_full_path(filepath):
-    if not os.path.isabs(filepath):
-        filepath = os.path.join(
-            os.getcwd(), filepath
-        )
-
-    return 'file://{}'.format(filepath)
-
-
 def create_preprocessed_parquet(
         model_definition,
         model_definition_file=None,
@@ -299,20 +290,22 @@ def train_parquet(
         logger.info('\n')
 
     train_set_metadata = load_metadata(train_set_metadata_json)
+    # TODO Assumes fully valid parquet path is provided
+    # starting with file:/// or hdfs:///
     training_set = PetaStormDataset(
         model_definition['input_features'],
         model_definition['output_features'],
-        _parquet_full_path(train_parquet_path)
+        train_parquet_path
     )
     validation_set = PetaStormDataset(
          model_definition['input_features'],
          model_definition['output_features'],
-        _parquet_full_path(validation_parquet_path)
+        validation_parquet_path
     )
     test_set = PetaStormDataset(
          model_definition['input_features'],
          model_definition['output_features'],
-        _parquet_full_path(test_parquet_path)
+        test_parquet_path
     )
 
     # update model definition with metadata properties

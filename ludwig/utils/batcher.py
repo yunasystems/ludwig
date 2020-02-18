@@ -111,7 +111,10 @@ class PetaStormBatcher(object):
         # batch is an instance of collections.ParquetSchema_view
         # (subclass of tuple)
         for col in batch._fields:
-            self.cur_batch[col] += list(batch.__getattribute__(col))
+            if col in self.cur_batch:
+                self.cur_batch[col] += list(batch.__getattribute__(col))
+            else:
+                self.cur_batch[col] = list(batch.__getattribute__(col))
 
         self.cur_batch_size = len(self.cur_batch[col])
 

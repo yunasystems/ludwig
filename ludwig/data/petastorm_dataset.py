@@ -49,6 +49,8 @@ class PetaStormDataset:
                 batch = self.reader.next()
                 num_rows += len(batch[0])
             except StopIteration:
+                # Reached the last batch of data
+                self.reset()
                 return num_rows
 
         return num_rows

@@ -27,14 +27,8 @@ import numpy as np
 import pandas as pd
 
 from pandas.errors import ParserError
-from pyspark.sql import SparkSession
-from pyspark.sql.types import *
-from petastorm.unischema import UnischemaField
-from petastorm.unischema import Unischema
-from petastorm.unischema import dict_to_spark_row
-from petastorm.codecs import *
 
-from petastorm.etl.dataset_metadata import materialize_dataset
+from pyspark.sql import SparkSession
 from pyspark.sql import Row
 from collections import OrderedDict
 
@@ -137,44 +131,6 @@ def save_hdf5(data_fp, data, metadata={}):
                         dataset.attrs['in_memory'] = False
 
 
-def parquet_generate_petastorm_schema(one_row, features):
-    col_schemas = []
-
-    for f in features:
-        key = f['name']
-        first_element = one_row[key]
-        ndim = first_element.ndim
-        if ndim == 0:
-            # scalar type
-            if isinstance(first_element, np.integer):
-                # integers
-                codec = ScalarCodec(IntegerType())
-            elif isinstance(first_element, np.float):
-                # floating point
-                codec = ScalarCodec(FloatType())
-            else:
-                raise ValueError(
-                    'Invalid scalar type for parquet dataset: {}'.format(
-                        first_element.dtype
-                    )
-                )
-
-            col_schemas.append(UnischemaField(
-                key, first_element.dtype.type, first_element.shape, codec, nullable=True
-            ))
-
-        elif ndim == 1:
-            # array type
-            col_schemas.append(UnischemaField(
-                key, first_element.dtype.type, first_element.shape, NdarrayCodec(), nullable=True
-            ))
-        else:
-            raise ValueError('Data types with >1 dimensions are not supported '
-                             'at the moment for parquet storage')
-
-    return Unischema('ParquetSchema', col_schemas)
-
-
 def save_parquet(data_fp, data, features):
 
     def row_generator(i):
@@ -185,7 +141,13 @@ def save_parquet(data_fp, data, features):
             else:
                 col_name = f['name']
 
-            out[f['name']] = data[col_name][i]
+            # TODO does not support image features
+            if f['type'] in ['text', 'sequence']:
+                # Spark doesn't work well with numpy arrays. We need to convert
+                # the numpy arrays to lists
+                out[f['name']] = data[col_name][i].tolist()
+            else:
+                out[f['name']] = data[col_name][i]
 
         return out
 
@@ -198,11 +160,11 @@ def save_parquet(data_fp, data, features):
     output_url = 'file://{}'.format(data_fp)
     num_rows = len(data[list(data.keys())[0]])
 
-    # with materialize_dataset(spark, output_url, schema):
     rdd = sc.parallelize(range(num_rows)).map(row_generator).map(
         convert_to_row
     )
-    spark.createDataFrame(rdd).coalesce(10).write.mode('overwrite').parquet(
+    # Will throw an error if the file path is not empty
+    spark.createDataFrame(rdd).coalesce(10).write.parquet(
         output_url
     )
 
