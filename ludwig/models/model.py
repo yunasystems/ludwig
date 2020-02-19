@@ -484,6 +484,7 @@ class Model:
         # ================ Training Loop ================
         while progress_tracker.epoch < self.epochs:
             # epoch init
+            import pdb; pdb.set_trace()
             start_time = time.time()
             if is_on_master():
                 logger.info(
@@ -506,7 +507,11 @@ class Model:
 
             # training step loop
             while not batcher.last_batch():
-                batch = batcher.next_batch()
+                try:
+                    batch = batcher.next_batch()
+                except Exception as e:
+                    print(e)
+                    import pdb; pdb.set_trace()
 
                 if self.horovod:
                     current_learning_rate = learning_rate_warmup_distributed(

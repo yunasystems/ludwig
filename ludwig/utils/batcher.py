@@ -89,9 +89,9 @@ class PetaStormBatcher(object):
         self.epoch = 0
 
     def reset(self):
-        # TODO adding this because model.py is calling reset
-        # However petastorm doesn't allow reset in the middle of iteration
-        pass
+        # Petastorm only supports reset after all samples are consumed
+        if self.index >= self.dataset.size:
+            self._reset()
 
     def _reset(self):
         self.dataset.reset()
@@ -105,7 +105,7 @@ class PetaStormBatcher(object):
         return self.dataset.size // self.batch_size
 
     def last_batch(self):
-        return self.step >= self.steps_per_epoch
+        return self.index >= self.dataset.size
 
     def append_batch(self, batch):
         # batch is an instance of collections.ParquetSchema_view
@@ -119,27 +119,30 @@ class PetaStormBatcher(object):
         self.cur_batch_size = len(self.cur_batch[col])
 
     def next_batch(self):
-        import pdb; pdb.set_trace()
+        if self.last_batch():
+            # TODO shuffle
+            import pdb; pdb.set_trace()
+            self.epoch += 1
+            self._reset()
+
         if self.cur_batch_size < self.batch_size:
             while self.cur_batch_size < self.batch_size:
-                # TODO last batch is being ignored, if it's smaller
-                #  than the batch_size
+                # TODO last batch is not being ignored, if it's smaller
                 try:
                     next_batch = self.dataset.next()
+                    self.append_batch(next_batch)
                 except StopIteration:
-                    self.epoch += 1
-                    self._reset()
-                    next_batch = self.dataset.next()
-
-                self.append_batch(next_batch)
+                    self.index = self.dataset.size
+                    break
 
         batch = {}
         for col in self.cur_batch:
-            batch[col] = self.cur_batch[:self.batch_size]
-            self.cur_batch[col] = self.cur_batch[self.batch_size:]
+            batch[col] = self.cur_batch[col][:self.batch_size]
+            self.cur_batch[col] = self.cur_batch[col][self.batch_size:]
+
         self.cur_batch_size = len(self.cur_batch[col])
 
-        self.index += self.batch_size
+        self.index += len(batch[col])
         self.step += 1
 
         return batch

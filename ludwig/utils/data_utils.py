@@ -147,7 +147,7 @@ def save_parquet(data_fp, data, features):
                 # the numpy arrays to lists
                 out[f['name']] = data[col_name][i].tolist()
             else:
-                out[f['name']] = data[col_name][i]
+                out[f['name']] = data[col_name][i].item()
 
         return out
 
