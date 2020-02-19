@@ -29,19 +29,29 @@ like I'm doing,other,1,en
 
 """
 
+"""
+# Get the sample data from HDFS
+hdfs dfs -get /user/smiryala/dispatch_bot/train.csv
+hdfs dfs -get /user/smiryala/dispatch_bot/test.csv
+hdfs dfs -get /user/smiryala/dispatch_bot/validation.csv
+"""
+
+from ludwig.train_parquet import create_preprocessed_parquet, train_parquet
+
 create_preprocessed_parquet(
-    None,
-    'dispatch_bot/model_definition.yaml',
-    data_train_csv='dispatch_bot/data/train.csv',
-    data_validation_csv='dispatch_bot/data/validation.csv',
-    data_test_csv='dispatch_bot/data/test.csv'
+    model_definition={},
+    model_definition_file='model_definition.yaml',
+    data_train_csv='train.csv',
+    data_validation_csv='validation.csv',
+    data_test_csv='test.csv'
 )
 
-_ = train_parquet(
-    {},
-    model_definition_file='dispatch_bot/model_definition.yaml',
-    train_parquet_path='dispatch_bot/data/train.parquet/',
-    validation_parquet_path='dispatch_bot/data/validation.parquet/',
-    test_parquet_path='dispatch_bot/data/test.parquet/',
-    train_set_metadata_json='dispatch_bot/data/train.json'
+# Upload the parquet files to a folder in HDFS
+train_parquet(
+    model_definition={},
+    model_definition_file='model_definition.yaml',
+    train_parquet_path='hdfs:///user/smiryala/dispatch_bot/train.parquet',
+    validation_parquet_path='hdfs:///user/smiryala/dispatch_bot/validation.parquet',
+    test_parquet_path='hdfs:///user/smiryala/dispatch_bot/test.parquet',
+    train_set_metadata_json='train.json',
 )
