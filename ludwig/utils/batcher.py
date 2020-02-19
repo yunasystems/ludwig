@@ -74,7 +74,7 @@ class PetaStormBatcher(object):
     def __init__(self, dataset, batch_size=128, should_shuffle=True, ignore_last=False):
         # store our dataset as well
         self.dataset = dataset
-        # TODO ignore last is True by default for this at the moment
+        # TODO ignore last is False by default for this at the moment
         self.ignore_last = ignore_last
         # TODO this is ignored at the moment
         self.should_shuffle = True
@@ -84,28 +84,43 @@ class PetaStormBatcher(object):
 
         self.batch_size = batch_size
         self.steps_per_epoch = self.get_num_batches()
-        self.index = 0
         self.step = 0
         self.epoch = 0
+        self.last_batch_read = False
 
     def reset(self):
         # Petastorm only supports reset after all samples are consumed
-        if self.index >= self.dataset.size:
+        if self.last_batch():
             self._reset()
 
     def _reset(self):
         self.dataset.reset()
         self.step = 0
-        self.index = 0
+        self.last_batch_read = False
 
     def get_num_batches(self):
         # TODO petastorm doesn't seem to have a way to know the amount of data
         # so we need to do a pass on the data to estimate the number of batches.
         # This is required for the optimizers
-        return self.dataset.size // self.batch_size
+        # TODO last batch will not be ignored because of math.ceil
+        # If we want ignore last batch, we need to change this to math.floor
+        return math.ceil(self.dataset.size / self.batch_size)
+
+    def get_size_of_batch(self, batch):
+        if len(batch) == 0:
+            # empty dictionary
+            return 0
+        if isinstance(batch, dict):
+            for key in batch:
+                return len(batch[key])
+        # petastorm inferred schema view
+        columns = batch._fields
+        if len(columns) == 0:
+            return 0
+        return len(batch.__getattribute__(columns[0]))
 
     def last_batch(self):
-        return self.index >= self.dataset.size
+        return self.step >= self.steps_per_epoch
 
     def append_batch(self, batch):
         # batch is an instance of collections.ParquetSchema_view
@@ -116,23 +131,18 @@ class PetaStormBatcher(object):
             else:
                 self.cur_batch[col] = list(batch.__getattribute__(col))
 
-        self.cur_batch_size = len(self.cur_batch[col])
-
     def next_batch(self):
-        if self.last_batch():
-            # TODO shuffle
-            import pdb; pdb.set_trace()
-            self.epoch += 1
-            self._reset()
-
+        self.cur_batch_size = self.get_size_of_batch(self.cur_batch)
         if self.cur_batch_size < self.batch_size:
             while self.cur_batch_size < self.batch_size:
                 # TODO last batch is not being ignored, if it's smaller
                 try:
                     next_batch = self.dataset.next()
                     self.append_batch(next_batch)
+                    self.cur_batch_size = self.get_size_of_batch(self.cur_batch)
                 except StopIteration:
-                    self.index = self.dataset.size
+                    # mark the current batch as the last one
+                    self.last_batch_read = True
                     break
 
         batch = {}
@@ -140,9 +150,6 @@ class PetaStormBatcher(object):
             batch[col] = self.cur_batch[col][:self.batch_size]
             self.cur_batch[col] = self.cur_batch[col][self.batch_size:]
 
-        self.cur_batch_size = len(self.cur_batch[col])
-
-        self.index += len(batch[col])
         self.step += 1
 
         return batch
